@@ -1,0 +1,160 @@
+---
+title: "Reproducible Research: Peer Assessment 1"
+output: 
+  html_document:
+    keep_md: true
+---
+
+
+## Loading and preprocessing the data
+
+
+Read the data file and convert to a data.table
+
+```{r}
+library("data.table")
+dat <- read.csv("activity.csv")
+dat <- as.data.table(dat)
+```
+
+Sum up steps per day
+
+```{r}
+# skip NA's for now
+
+good <- complete.cases(dat)
+good_dat <- dat[good,]
+day_sum <- good_dat[,sum(steps),by="date"]
+setnames(day_sum,2,"Total Steps")
+```
+
+
+## What is mean total number of steps taken per day?
+
+
+Here's a histogram of the total number of steps per day:
+```{r, echo=FALSE}
+# plot the histogram
+
+br <- c(0,2500,5000,7500,10000,12500,15000,17500,20000,22500)
+hist(day_sum$Total,breaks=br,xlab="Total Steps",
+     main="Total Steps Taken Each Day")
+
+# Compute mean and median
+
+day_mean <- mean(day_sum$Total)
+day_median <- median(day_sum$Total)
+
+```
+
+The mean is `r format(day_mean,nsmall=0)`, the median is `r day_median`
+
+
+## What is the average daily activity pattern?
+
+
+Compute the interval averages across all days
+
+```{r}
+interval_avg <- good_dat[, mean(steps), by="interval"]
+```
+
+Now plot it
+
+```{r}
+plot(interval_avg$interval, interval_avg$V1, type='l',
+     xlab="Interval",
+     ylab="Interval Average",
+     main="Mean Steps Taken Each Interval")
+```
+
+Calculate the maximum mean steps per interval
+
+```{r}
+# Compute mean and median
+
+interval_max <- max(interval_avg$Mean)
+
+```
+
+The maximum average step per interval is `r format(interval_max,digits=5)`
+
+
+## Imputing missing values
+
+
+Now count up all of the rows with missing values
+
+```{r}
+num_missing <- nrow(dat) - nrow(dat[good,])
+```
+
+`r num_missing` rows have NA's
+
+Let's replace each NA with the average for that interval across all days
+
+```{r}
+nn <- nrow(dat)
+for (j in 1:nn) {
+        if(good[j]==FALSE) dat[j,1] <- mean(dat[dat$interval==dat[j,3],3])
+}
+
+# make the sums
+day_sum_filled <- dat[,sum(steps),by="date"]
+setnames(day_sum_filled,2,"Total Steps")
+```
+
+Let's look at the new histogram
+
+```{r, echo=FALSE}
+hist(day_sum_filled$Total,breaks=br,xlab="Total Steps",
+     main="Total Steps Taken Each Day")
+
+# Compute mean and median
+
+day_mean_filled <- mean(day_sum_filled$Total)
+day_median_filled <- median(day_sum_filled$Total)
+mean_diff <- day_mean - day_mean_filled
+median_diff <- day_median - day_median_filled
+```
+
+The mean is `r format(day_mean_filled,nsmall=0)`, the median is `r day_median_filled`
+
+The mean has changed by `r mean_diff`, and the median has changed by `r median_diff`. 
+
+The impact of replacing the NA's is to increase the frequency in the first histogram block, which decreases the mean and the median.
+
+## Are there differences in activity patterns between weekdays and weekends?
+
+Let's calculate averages for all weekdays and weekends for each interval
+
+```{r}
+days <- as.POSIXlt(dat$date)
+#days2 <- character(nrow(dat))
+days2 <- as.character(weekdays(days))
+nn <- nrow(dat)
+day_col <- character(nrow(dat))
+for (j in 1:nn) {
+        if (days2[j]=="Saturday" | days2[j]=="Sunday") {
+                day_col[j] <- "Weekends"
+                }        
+                else {
+                day_col[j] <- "Weekdays"
+                }
+        }
+dat$day <- day_col
+
+interval_avg_2 <- dat[, mean(steps), by=c("interval","day")]
+```
+
+Now plot it
+
+```{r}
+
+library(lattice)
+## Convert 'Month' to a factor variable
+
+interval_avg_2 <- transform(interval_avg_2, day = factor(day))
+xyplot(V1 ~ interval | day, data = interval_avg_2, type="l",layout = c(1, 2))
+
+```
